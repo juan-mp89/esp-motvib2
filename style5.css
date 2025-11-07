@@ -1,0 +1,144 @@
+/* ===================== General ===================== */
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #111;
+    color: #eee;
+}
+
+.topnav {
+    background-color: #222;
+    padding: 10px;
+    text-align: center;
+}
+
+.topnav h1 {
+    margin: 0;
+    font-size: 1.5em;
+}
+
+/* ===================== Cards ===================== */
+.card {
+    background-color: #1c1c1c;
+    border-radius: 10px;
+    padding: 15px;
+    margin: 10px auto;
+    width: 90%;
+    max-width: 400px;
+}
+
+.center-text {
+    text-align: center;
+}
+
+.button-group {
+    text-align: center;
+    margin-top: 10px;
+}
+
+/* ===================== BLE botones ===================== */
+.connectButton {
+    background-color: #007bff;
+    color: white;
+    padding: 8px 20px;
+    border: none;
+    border-radius: 5px;
+    margin: 5px auto;
+    display: block;
+    width: 50%;
+    max-width: 200px;
+    cursor: pointer;
+}
+
+.disconnectButton {
+    background-color: #dc3545;
+    color: white;
+    padding: 8px 20px;
+    border: none;
+    border-radius: 5px;
+    margin: 5px auto;
+    display: block;
+    width: 50%;
+    max-width: 200px;
+    cursor: pointer;
+}
+
+.ble-state-label {
+    text-align: center;
+    margin-top: 5px;
+}
+
+.ble-state.disconnected { color: #d13a30; }
+.ble-state.connecting { color: #ffa500; }
+.ble-state.connected { color: #24af37; }
+
+/* ===================== Modos ===================== */
+.mode-select {
+    display: block;
+    margin: 10px auto;
+    padding: 5px;
+    width: 60%;
+    font-size: 1em;
+    text-align-last: center;
+    background-color: #2a2a2a; /* fondo oscuro */
+    color: #eee; /* texto legible */
+    border: 1px solid #555;
+    border-radius: 5px;
+}
+
+.mode-parameters {
+    text-align: center;
+    margin: 10px 0;
+}
+
+.param-row {
+    margin: 5px 0;
+}
+
+.param-row input {
+    width: 11%;
+    text-align: center;
+}
+
+/* ===================== Enviar / Stop ===================== */
+.sendButton {
+    background-color: #28a745;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 5px;
+    margin-right: 10px;
+    cursor: pointer;
+}
+
+.stopButton {
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+/* ===================== Waveform ===================== */
+.waveform-card canvas {
+    display: block;
+    margin: 10px auto;
+    background-color: #111;
+    border: 1px solid #555;
+    border-radius: 5px;
+}
+
+.timestamp {
+    text-align: center;
+    font-size: 0.9em;
+    margin-top: 5px;
+}
+
+/* ===================== Footer ===================== */
+.footer {
+    text-align: center;
+    font-size: 0.8em;
+    padding: 10px;
+    color: #aaa;
+}

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ESP32 Web BLE Motor Control</title>
+    <link rel="stylesheet" href="style5.css">
+</head>
+<body>
+    <div class="topnav">
+        <h1>ESP32 Web BLE Motor Control</h1>
+    </div>
+
+    <div class="content">
+
+        <!-- === Conexión BLE === -->
+        <div class="card ble-card">
+            <p class="button-group">
+                <button id="connectBleButton" class="connectButton">Conectar dispositivo</button>
+                <button id="disconnectBleButton" class="disconnectButton">Desconectar</button>
+            </p>
+            <p class="gray-label ble-state-label">
+                Estado BLE: 
+                <strong><span id="bleState" class="ble-state disconnected">Desconectado</span></strong>
+            </p>
+        </div>
+
+        <!-- === Selección de modo === -->
+        <div class="card mode-card">
+            <h2 class="center-text">Seleccionar modo</h2>
+            <select id="modeSelect" class="mode-select">
+                <option value="SQR">Cuadrado</option>
+                <option value="TRI">Triangular</option>
+                <option value="SIN">Senoidal</option>
+                <option value="CONST">Constante</option>
+            </select>
+
+            <!-- Parámetros dinámicos según modo -->
+            <div id="modeParameters" class="mode-parameters">
+                <!-- Se rellenan con JS -->
+            </div>
+
+            <div class="button-group">
+                <button id="sendModeButton" class="sendButton">Enviar modo</button>
+                <button id="stopButton" class="stopButton">Stop</button>
+            </div>
+        </div>
+
+        <!-- === Visualizador de onda (oculto por defecto) === -->
+        <div class="card waveform-card" id="waveformCard" style="display:none;">
+            <h2 class="center-text">Forma de onda</h2>
+            <canvas id="waveCanvas" width="350" height="150"></canvas>
+            <p class="timestamp" id="waveTimestamp">Últimos 10s</p>
+        </div>
+
+    </div>
+
+    <div class="footer">
+        <p>Creado para controlar ESP32-S3 vía Web Bluetooth</p>
+    </div>
+
+<script>
+/* ======================= Variables y DOM ======================= */
+const connectButton = document.getElementById('connectBleButton');
+const disconnectButton = document.getElementById('disconnectBleButton');
+const bleStateContainer = document.getElementById('bleState');
+const modeSelect = document.getElementById('modeSelect');
+const modeParameters = document.getElementById('modeParameters');
+const sendModeButton = document.getElementById('sendModeButton');
+const stopButton = document.getElementById('stopButton');
+
+const waveCanvas = document.getElementById('waveCanvas');
+const waveformCard = document.getElementById('waveformCard');
+const ctx = waveCanvas.getContext('2d');
+const waveTimestamp = document.getElementById('waveTimestamp');
+
+const deviceName = "ESP32S3MOTVIB";
+const bleServiceUUID = "c8ab9930-e233-402d-97a8-a9cfc8db12e4";
+const ledCharacteristicUUID = "d6ff81ff-2030-4f30-a7be-41f2fbc03a9b";
+const sensorCharacteristicUUID = "03bea938-ba38-48e1-928c-5a300a294fdd";
+
+let bleServer = null;
+let bleService = null;
+let ledCharacteristic = null;
+let sensorCharacteristic = null;
+
+let waveData = [];
+const maxPoints = 350;
+
+/* ======================= Funciones BLE ======================= */
+connectButton.addEventListener('click', connectDevice);
+disconnectButton.addEventListener('click', disconnectDevice);
+
+function connectDevice() {
+    bleStateContainer.innerHTML = "Conectando...";
+    bleStateContainer.className = "ble-state connecting";
+
+    navigator.bluetooth.requestDevice({
+        filters: [{name: deviceName}],
+        optionalServices: [bleServiceUUID]
+    })
+    .then(device => {
+        device.addEventListener('gattserverdisconnected', onDisconnected);
+        return device.gatt.connect();
+    })
+    .then(server => {
+        bleServer = server;
+        return bleServer.getPrimaryService(bleServiceUUID);
+    })
+    .then(service => {
+        bleService = service;
+        return bleService.getCharacteristic(sensorCharacteristicUUID);
+    })
+    .then(characteristic => {
+        sensorCharacteristic = characteristic;
+        sensorCharacteristic.addEventListener('characteristicvaluechanged', handleSensorUpdate);
+        return sensorCharacteristic.startNotifications();
+    })
+    .then(() => bleService.getCharacteristic(ledCharacteristicUUID))
+    .then(characteristic => {
+        ledCharacteristic = characteristic;
+        bleStateContainer.innerHTML = "Conectado";
+        bleStateContainer.className = "ble-state connected";
+    })
+    .catch(err => {
+        console.error(err);
+        bleStateContainer.innerHTML = "Error de conexión";
+        bleStateContainer.className = "ble-state disconnected";
+    });
+}
+
+function disconnectDevice() {
+    if(bleServer && bleServer.connected) {
+        bleServer.disconnect();
+    }
+    bleStateContainer.innerHTML = "Desconectado";
+    bleStateContainer.className = "ble-state disconnected";
+}
+
+function onDisconnected() {
+    bleStateContainer.innerHTML = "Desconectado";
+    bleStateContainer.className = "ble-state disconnected";
+}
+
+/* ======================= Parámetros según modo ======================= */
+modeSelect.addEventListener('change', updateModeParameters);
+
+function updateModeParameters() {
+    const mode = modeSelect.value;
+    modeParameters.innerHTML = "";
+
+    if(mode === "TRI") {
+        modeParameters.innerHTML = `
+            <div class="param-row"><label>Amplitud (0-255):</label><input type="number" id="triAmp" min="0" max="255" value="180"></div>
+            <div class="param-row"><label>Tiempo subida (ms):</label><input type="number" id="triRamp" min="1" value="1000"></div>
+        `;
+    } else if(mode === "SQR") {
+        modeParameters.innerHTML = `
+            <div class="param-row"><label>Amplitud (0-255):</label><input type="number" id="sqrAmp" min="0" max="255" value="180"></div>
+            <div class="param-row"><label>Tiempo alto (ms):</label><input type="number" id="sqrHigh" min="1" value="500"></div>
+            <div class="param-row"><label>Tiempo bajo (ms):</label><input type="number" id="sqrLow" min="1" value="500"></div>
+        `;
+    } else if(mode === "SIN") {
+        modeParameters.innerHTML = `
+            <div class="param-row"><label>Amplitud (0-255):</label><input type="number" id="sinAmp" min="0" max="255" value="180"></div>
+            <div class="param-row"><label>Frecuencia (Hz):</label><input type="number" step="0.01" id="sinFreq" min="0" value="0.25"></div>
+        `;
+    } else if(mode === "CONST") {
+        modeParameters.innerHTML = `
+            <div class="param-row"><label>Duty (0-255):</label><input type="number" id="constDuty" min="0" max="255" value="0"></div>
+        `;
+    }
+}
+updateModeParameters();
+
+/* ======================= Enviar modo / Stop ======================= */
+sendModeButton.addEventListener('click', sendMode);
+stopButton.addEventListener('click', stopMode);
+
+function sendMode() {
+    if(!ledCharacteristic) return;
+    const mode = modeSelect.value;
+    let cmd = mode;
+    if(mode === "TRI") {
+        const amp = document.getElementById("triAmp").value;
+        const ramp = document.getElementById("triRamp").value;
+        cmd += ` ${amp} ${ramp}`;
+    } else if(mode === "SQR") {
+        const amp = document.getElementById("sqrAmp").value;
+        const high = document.getElementById("sqrHigh").value;
+        const low = document.getElementById("sqrLow").value;
+        cmd += ` ${amp} ${high} ${low}`;
+    } else if(mode === "SIN") {
+        const amp = document.getElementById("sinAmp").value;
+        const freq = document.getElementById("sinFreq").value;
+        cmd += ` ${amp} ${freq}`;
+    } else if(mode === "CONST") {
+        const duty = document.getElementById("constDuty").value;
+        cmd += ` ${duty}`;
+    }
+    const data = new TextEncoder().encode(cmd);
+    ledCharacteristic.writeValue(data).then(()=>{
+        console.log("Comando enviado:", cmd);
+        waveData = [];
+        waveformCard.style.display = "block"; // mostrar onda solo al enviar modo
+    });
+}
+
+/* ======================= Stop ======================= */
+function stopMode() {
+    if(!ledCharacteristic) return;
+    const data = new TextEncoder().encode("STOP");
+    ledCharacteristic.writeValue(data).then(()=>console.log("STOP enviado"));
+    waveData = [];
+    waveformCard.style.display = "none"; // ocultar onda
+}
+
+/* ======================= Visualizador de onda ======================= */
+function handleSensorUpdate(event) {
+    const value = new TextDecoder().decode(event.target.value);
+    let pwmMatch = value.match(/PWM=(\d+)/);
+    if(pwmMatch) {
+        const pwm = parseInt(pwmMatch[1]);
+        waveData.push(pwm);
+        if(waveData.length > maxPoints) waveData.shift();
+    }
+}
+
+function drawWave() {
+    ctx.fillStyle = "#111";
+    ctx.fillRect(0,0,waveCanvas.width,waveCanvas.height);
+
+    if(waveData.length === 0) return;
+
+    ctx.strokeStyle = "#00ff00";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for(let i=0; i<waveData.length; i++){
+        const x = (i/waveData.length) * waveCanvas.width;
+        const y = waveCanvas.height - (waveData[i]/255)*waveCanvas.height;
+        if(i===0) ctx.moveTo(x,y);
+        else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+}
+
+function animate() {
+    drawWave();
+    requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+</script>
+
+</body>
+</html>
