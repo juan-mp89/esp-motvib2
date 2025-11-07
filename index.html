@@ -4,16 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>ESP32 Web BLE Motor Control</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style6.css">
 </head>
 <body>
+    <!-- ======================== ENCABEZADO ======================== -->
     <div class="topnav">
         <h1>ESP32 Web BLE Motor Control</h1>
     </div>
 
     <div class="content">
 
-        <!-- === Conexión BLE === -->
+        <!-- ======================== TARJETA DE CONEXIÓN BLE ======================== -->
         <div class="card ble-card">
             <p class="button-group">
                 <button id="connectBleButton" class="connectButton">Conectar dispositivo</button>
@@ -25,28 +26,30 @@
             </p>
         </div>
 
-        <!-- === Selección de modo === -->
+        <!-- ======================== SELECCIÓN DE MODO ======================== -->
         <div class="card mode-card">
             <h2 class="center-text">Seleccionar modo</h2>
+
+            <!-- Selector con los distintos modos -->
             <select id="modeSelect" class="mode-select">
                 <option value="SQR">Cuadrado</option>
                 <option value="TRI">Triangular</option>
                 <option value="SIN">Senoidal</option>
                 <option value="CONST">Constante</option>
+                <option value="MANUAL">Control Manual</option>
             </select>
 
-            <!-- Parámetros dinámicos según modo -->
-            <div id="modeParameters" class="mode-parameters">
-                <!-- Se rellenan con JS -->
-            </div>
+            <!-- Contenedor donde se cargarán dinámicamente los parámetros de cada modo -->
+            <div id="modeParameters" class="mode-parameters"></div>
 
+            <!-- Botones de envío y parada -->
             <div class="button-group">
                 <button id="sendModeButton" class="sendButton">Enviar modo</button>
                 <button id="stopButton" class="stopButton">Stop</button>
             </div>
         </div>
 
-        <!-- === Visualizador de onda (oculto por defecto) === -->
+        <!-- ======================== TARJETA DE GRÁFICA ======================== -->
         <div class="card waveform-card" id="waveformCard" style="display:none;">
             <h2 class="center-text">Forma de onda</h2>
             <canvas id="waveCanvas" width="350" height="150"></canvas>
@@ -59,8 +62,11 @@
         <p>Creado para controlar ESP32-S3 vía Web Bluetooth</p>
     </div>
 
+<!-- ======================== SCRIPT PRINCIPAL ======================== -->
 <script>
-/* ======================= Variables y DOM ======================= */
+/* ================================================================
+   VARIABLES GLOBALES
+   ================================================================ */
 const connectButton = document.getElementById('connectBleButton');
 const disconnectButton = document.getElementById('disconnectBleButton');
 const bleStateContainer = document.getElementById('bleState');
@@ -68,26 +74,26 @@ const modeSelect = document.getElementById('modeSelect');
 const modeParameters = document.getElementById('modeParameters');
 const sendModeButton = document.getElementById('sendModeButton');
 const stopButton = document.getElementById('stopButton');
-
 const waveCanvas = document.getElementById('waveCanvas');
 const waveformCard = document.getElementById('waveformCard');
 const ctx = waveCanvas.getContext('2d');
 const waveTimestamp = document.getElementById('waveTimestamp');
 
-const deviceName = "ESP32S3MOTVIB";
+const deviceName = "ESP32S3MOTVIB"; // Nombre BLE del ESP32
 const bleServiceUUID = "c8ab9930-e233-402d-97a8-a9cfc8db12e4";
 const ledCharacteristicUUID = "d6ff81ff-2030-4f30-a7be-41f2fbc03a9b";
 const sensorCharacteristicUUID = "03bea938-ba38-48e1-928c-5a300a294fdd";
 
 let bleServer = null;
-let bleService = null;
 let ledCharacteristic = null;
 let sensorCharacteristic = null;
 
-let waveData = [];
-const maxPoints = 350;
+let waveData = [];           // Datos de la forma de onda recibida
+const maxPoints = 350;       // Número máximo de puntos para graficar
 
-/* ======================= Funciones BLE ======================= */
+/* ================================================================
+   CONEXIÓN BLE
+   ================================================================ */
 connectButton.addEventListener('click', connectDevice);
 disconnectButton.addEventListener('click', disconnectDevice);
 
@@ -96,29 +102,30 @@ function connectDevice() {
     bleStateContainer.className = "ble-state connecting";
 
     navigator.bluetooth.requestDevice({
-        filters: [{name: deviceName}],
-        optionalServices: [bleServiceUUID]
+        filters: [{ name: deviceName }],         // Filtra por nombre del dispositivo
+        optionalServices: [bleServiceUUID]       // Servicio que se desea acceder
     })
     .then(device => {
         device.addEventListener('gattserverdisconnected', onDisconnected);
-        return device.gatt.connect();
+        return device.gatt.connect();            // Conecta al GATT Server
     })
-    .then(server => {
-        bleServer = server;
-        return bleServer.getPrimaryService(bleServiceUUID);
-    })
+    .then(server => server.getPrimaryService(bleServiceUUID))
     .then(service => {
-        bleService = service;
-        return bleService.getCharacteristic(sensorCharacteristicUUID);
+        // Obtiene las dos características necesarias
+        return Promise.all([
+            service.getCharacteristic(sensorCharacteristicUUID),
+            service.getCharacteristic(ledCharacteristicUUID)
+        ]);
     })
-    .then(characteristic => {
-        sensorCharacteristic = characteristic;
+    .then(([sensorChar, ledChar]) => {
+        sensorCharacteristic = sensorChar;
+        ledCharacteristic = ledChar;
+
+        // Escucha actualizaciones del sensor (para graficar)
         sensorCharacteristic.addEventListener('characteristicvaluechanged', handleSensorUpdate);
-        return sensorCharacteristic.startNotifications();
-    })
-    .then(() => bleService.getCharacteristic(ledCharacteristicUUID))
-    .then(characteristic => {
-        ledCharacteristic = characteristic;
+        sensorCharacteristic.startNotifications();
+
+        // Actualiza el estado en la interfaz
         bleStateContainer.innerHTML = "Conectado";
         bleStateContainer.className = "ble-state connected";
     })
@@ -130,9 +137,7 @@ function connectDevice() {
 }
 
 function disconnectDevice() {
-    if(bleServer && bleServer.connected) {
-        bleServer.disconnect();
-    }
+    if (bleServer && bleServer.connected) bleServer.disconnect();
     bleStateContainer.innerHTML = "Desconectado";
     bleStateContainer.className = "ble-state disconnected";
 }
@@ -142,108 +147,163 @@ function onDisconnected() {
     bleStateContainer.className = "ble-state disconnected";
 }
 
-/* ======================= Parámetros según modo ======================= */
+/* ================================================================
+   ENVÍO DE COMANDOS BLE
+   ================================================================ */
+/*
+   Esta función toma un string, elimina saltos de línea y espacios
+   innecesarios, y lo envía como bytes UTF-8 al ESP32.
+   ¡Aquí también podríamos depurar con console.log si lo deseamos!
+*/
+function sendBleCommand(str) {
+    if (!ledCharacteristic) return;
+    const clean = str.trim().replace(/\r?\n/g, ''); // limpia el texto
+    const data = new TextEncoder().encode(clean);
+    ledCharacteristic.writeValue(data);
+}
+
+/* ================================================================
+   PARÁMETROS SEGÚN MODO
+   ================================================================ */
 modeSelect.addEventListener('change', updateModeParameters);
 
 function updateModeParameters() {
     const mode = modeSelect.value;
-    modeParameters.innerHTML = "";
+    modeParameters.innerHTML = ""; // limpia el contenedor
 
-    if(mode === "TRI") {
+    if (mode === "TRI") {
+        // Modo TRIANGULAR
         modeParameters.innerHTML = `
-            <div class="param-row"><label>Amplitud (0-255):</label><input type="number" id="triAmp" min="0" max="255" value="180"></div>
-            <div class="param-row"><label>Tiempo subida (ms):</label><input type="number" id="triRamp" min="1" value="1000"></div>
-        `;
-    } else if(mode === "SQR") {
+            <div class="param-row"><label>Amplitud:</label>
+            <input type="number" id="triAmp" min="0" max="255" value="180"></div>
+            <div class="param-row"><label>Tiempo subida (ms):</label>
+            <input type="number" id="triRamp" min="1" value="1000"></div>`;
+    } 
+    else if (mode === "SQR") {
+        // Modo CUADRADO
         modeParameters.innerHTML = `
-            <div class="param-row"><label>Amplitud (0-255):</label><input type="number" id="sqrAmp" min="0" max="255" value="180"></div>
-            <div class="param-row"><label>Tiempo alto (ms):</label><input type="number" id="sqrHigh" min="1" value="500"></div>
-            <div class="param-row"><label>Tiempo bajo (ms):</label><input type="number" id="sqrLow" min="1" value="500"></div>
-        `;
-    } else if(mode === "SIN") {
+            <div class="param-row"><label>Amplitud:</label>
+            <input type="number" id="sqrAmp" min="0" max="255" value="180"></div>
+            <div class="param-row"><label>Tiempo alto (ms):</label>
+            <input type="number" id="sqrHigh" min="1" value="500"></div>
+            <div class="param-row"><label>Tiempo bajo (ms):</label>
+            <input type="number" id="sqrLow" min="1" value="500"></div>`;
+    } 
+    else if (mode === "SIN") {
+        // Modo SENOIDAL
+        // ⚠️ Aquí estaba el problema original: el navegador puede devolver "0,25" en lugar de "0.25"
+        // Lo corregiremos al enviar el comando, reemplazando la coma por punto.
         modeParameters.innerHTML = `
-            <div class="param-row"><label>Amplitud (0-255):</label><input type="number" id="sinAmp" min="0" max="255" value="180"></div>
-            <div class="param-row"><label>Frecuencia (Hz):</label><input type="number" step="0.01" id="sinFreq" min="0" value="0.25"></div>
-        `;
-    } else if(mode === "CONST") {
+            <div class="param-row"><label>Amplitud:</label>
+            <input type="number" id="sinAmp" min="0" max="255" value="180"></div>
+            <div class="param-row"><label>Frecuencia (Hz):</label>
+            <input type="number" id="sinFreq" step="0.01" min="0" value="0.25"></div>`;
+    } 
+    else if (mode === "CONST") {
+        // Modo CONSTANTE
         modeParameters.innerHTML = `
-            <div class="param-row"><label>Duty (0-255):</label><input type="number" id="constDuty" min="0" max="255" value="0"></div>
+            <div class="param-row"><label>Duty:</label>
+            <input type="number" id="constDuty" min="0" max="255" value="0"></div>`;
+    } 
+    else if (mode === "MANUAL") {
+        // Modo MANUAL: controla directamente PWM y amplitud con sliders
+        modeParameters.innerHTML = `
+            <div class="param-row">
+                <label>Amplitud máx (0-255): </label>
+                <input type="range" id="manualAmp" min="0" max="255" value="255">
+                <span id="manualAmpValue">255</span>
+            </div>
+            <div class="param-row">
+                <label>PWM (0-255): </label>
+                <input type="range" id="manualPwm" min="0" max="255" value="0">
+                <span id="manualPwmValue">0</span>
+            </div>
         `;
+
+        // Eventos en los sliders: envían comando BLE en tiempo real
+        const ampSlider = document.getElementById("manualAmp");
+        ampSlider.addEventListener("input", () => {
+            const val = ampSlider.value;
+            document.getElementById("manualAmpValue").innerText = val;
+            sendBleCommand(`MANUAL AMP ${val}`);
+        });
+
+        const pwmSlider = document.getElementById("manualPwm");
+        pwmSlider.addEventListener("input", () => {
+            const val = pwmSlider.value;
+            document.getElementById("manualPwmValue").innerText = val;
+            sendBleCommand(`MANUAL PWM ${val}`);
+        });
     }
 }
-updateModeParameters();
+updateModeParameters(); // inicializa con el modo por defecto
 
-/* ======================= Enviar modo / Stop ======================= */
-sendModeButton.addEventListener('click', sendMode);
-stopButton.addEventListener('click', stopMode);
-
-function sendMode() {
-    if(!ledCharacteristic) return;
+/* ================================================================
+   BOTÓN: ENVIAR MODO
+   ================================================================ */
+sendModeButton.addEventListener('click', () => {
     const mode = modeSelect.value;
-    let cmd = mode;
-    if(mode === "TRI") {
-        const amp = document.getElementById("triAmp").value;
-        const ramp = document.getElementById("triRamp").value;
-        cmd += ` ${amp} ${ramp}`;
-    } else if(mode === "SQR") {
-        const amp = document.getElementById("sqrAmp").value;
-        const high = document.getElementById("sqrHigh").value;
-        const low = document.getElementById("sqrLow").value;
-        cmd += ` ${amp} ${high} ${low}`;
-    } else if(mode === "SIN") {
-        const amp = document.getElementById("sinAmp").value;
-        const freq = document.getElementById("sinFreq").value;
-        cmd += ` ${amp} ${freq}`;
-    } else if(mode === "CONST") {
-        const duty = document.getElementById("constDuty").value;
-        cmd += ` ${duty}`;
+    let cmd = mode; // base del comando (ej: "SIN")
+
+    // Construye el comando según el modo seleccionado
+    if (mode === "TRI") {
+        cmd += ` ${triAmp.value} ${triRamp.value}`;
+    } else if (mode === "SQR") {
+        cmd += ` ${sqrAmp.value} ${sqrHigh.value} ${sqrLow.value}`;
+    } else if (mode === "SIN") {
+        // ✅ Aquí aplicamos la corrección para el bug de coma decimal
+        const freq = sinFreq.value.replace(',', '.');
+        cmd += ` ${sinAmp.value} ${freq}`;
+    } else if (mode === "CONST") {
+        cmd += ` ${constDuty.value}`;
+    } else if (mode === "MANUAL") {
+        cmd = "MANUAL"; // Solo activa el modo manual
     }
-    const data = new TextEncoder().encode(cmd);
-    ledCharacteristic.writeValue(data).then(()=>{
-        console.log("Comando enviado:", cmd);
-        waveData = [];
-        waveformCard.style.display = "block"; // mostrar onda solo al enviar modo
-    });
-}
 
-/* ======================= Stop ======================= */
-function stopMode() {
-    if(!ledCharacteristic) return;
-    const data = new TextEncoder().encode("STOP");
-    ledCharacteristic.writeValue(data).then(()=>console.log("STOP enviado"));
-    waveData = [];
-    waveformCard.style.display = "none"; // ocultar onda
-}
+    sendBleCommand(cmd);             // envía el comando BLE al ESP32
+    waveformCard.style.display = "block"; // muestra la gráfica
+});
 
-/* ======================= Visualizador de onda ======================= */
+/* ================================================================
+   BOTÓN: STOP
+   ================================================================ */
+stopButton.addEventListener('click', () => {
+    sendBleCommand("STOP");
+    waveformCard.style.display = "none";
+});
+
+/* ================================================================
+   LECTURA DE SENSOR Y GRÁFICA
+   ================================================================ */
+// Recibe los datos del ESP32 (ej: "PWM=180") y los grafica en tiempo real.
 function handleSensorUpdate(event) {
     const value = new TextDecoder().decode(event.target.value);
     let pwmMatch = value.match(/PWM=(\d+)/);
-    if(pwmMatch) {
-        const pwm = parseInt(pwmMatch[1]);
-        waveData.push(pwm);
-        if(waveData.length > maxPoints) waveData.shift();
+    if (pwmMatch) {
+        waveData.push(parseInt(pwmMatch[1]));
+        if (waveData.length > maxPoints) waveData.shift();
     }
 }
 
+// Dibuja la forma de onda en el canvas
 function drawWave() {
     ctx.fillStyle = "#111";
-    ctx.fillRect(0,0,waveCanvas.width,waveCanvas.height);
+    ctx.fillRect(0, 0, waveCanvas.width, waveCanvas.height);
 
-    if(waveData.length === 0) return;
+    if (waveData.length === 0) return;
 
     ctx.strokeStyle = "#00ff00";
-    ctx.lineWidth = 2;
     ctx.beginPath();
-    for(let i=0; i<waveData.length; i++){
-        const x = (i/waveData.length) * waveCanvas.width;
-        const y = waveCanvas.height - (waveData[i]/255)*waveCanvas.height;
-        if(i===0) ctx.moveTo(x,y);
-        else ctx.lineTo(x,y);
+    for (let i = 0; i < waveData.length; i++) {
+        const x = (i / waveData.length) * waveCanvas.width;
+        const y = waveCanvas.height - (waveData[i] / 255) * waveCanvas.height;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
     }
     ctx.stroke();
 }
 
+// Bucle de animación de la gráfica
 function animate() {
     drawWave();
     requestAnimationFrame(animate);
@@ -253,4 +313,3 @@ requestAnimationFrame(animate);
 
 </body>
 </html>
-
