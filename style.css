@@ -104,29 +104,59 @@ body {
 }
 
 /* ✅ Sliders del Modo 5 (Control Manual) */
+/* ====================== SLIDERS DEL MODO MANUAL ====================== */
 .param-row input[type="range"] {
     width: 100%;
-    max-width: 300px;
-    margin-top: 5px;
+    height: 26px;               /* más alto para fácil toque */
     -webkit-appearance: none;
-    background: #333;
-    height: 6px;
-    border-radius: 5prx;
+    background: #444;           /* color original oscuro */
+    border-radius: 6px;
+    margin-top: 6px;
 }
 
 .param-row input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 18px;
-    height: 18px;
-    background: #28a745;
+    width: 26px;                /* más grande para dedo */
+    height: 26px;
     border-radius: 50%;
+    background: #2196F3;        /* color azul original */
     cursor: pointer;
+    border: 2px solid #111;
+    margin-top: -8px;
 }
 
+.param-row input[type="range"]::-moz-range-thumb {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #2196F3;
+    cursor: pointer;
+    border: 2px solid #111;
+}
+
+/* valor numérico del slider */
 .param-row span {
-    margin-top: 3px;
+    margin-top: 4px;
     font-size: 0.9em;
-    color: #aaa;
+    color: #ccc;
+}
+
+/* RESPONSIVE: mejora sliders en móviles */
+@media (max-width: 480px) {
+    .param-row input[type="range"] {
+        height: 32px;
+    }
+
+    .param-row input[type="range"]::-webkit-slider-thumb {
+        width: 32px;
+        height: 32px;
+        margin-top: -10px;
+    }
+
+    .param-row input[type="range"]::-moz-range-thumb {
+        width: 32px;
+        height: 32px;
+    }
 }
 
 /* ===================== Enviar / Stop ===================== */
