@@ -80,8 +80,8 @@ body {
     width: 60%;
     font-size: 1em;
     text-align-last: center;
-    background-color: #2a2a2a; /* fondo oscuro */
-    color: #eee; /* texto legible */
+    background-color: #2a2a2a;
+    color: #eee;
     border: 1px solid #555;
     border-radius: 5px;
 }
@@ -92,12 +92,41 @@ body {
 }
 
 .param-row {
-    margin: 5px 0;
+    margin: 8px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
-.param-row input {
-    width: 11%;
+.param-row input[type="number"] {
+    width: 30%;
     text-align: center;
+}
+
+/* ✅ Sliders del Modo 5 (Control Manual) */
+.param-row input[type="range"] {
+    width: 100%;
+    max-width: 300px;
+    margin-top: 5px;
+    -webkit-appearance: none;
+    background: #333;
+    height: 6px;
+    border-radius: 5prx;
+}
+
+.param-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    background: #28a745;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.param-row span {
+    margin-top: 3px;
+    font-size: 0.9em;
+    color: #aaa;
 }
 
 /* ===================== Enviar / Stop ===================== */
